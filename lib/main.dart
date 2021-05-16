@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/cupertino.dart';
@@ -75,38 +76,59 @@ Future<Position> determinePosition() async {
 }
 
 class MyHomePage extends StatefulWidget {
-
   const MyHomePage({Key? key}) : super(key: key);
 
   @override
   State<StatefulWidget> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage>
+    with SingleTickerProviderStateMixin {
   static const String _apiKey = "a66a0b1366de7b889f754c217598362a";
   final WeatherFactory wf = WeatherFactory(_apiKey);
-
+  WeatherInfo? _lastData;
+  late Tween<Offset> _tween;
+  late AnimationController _animationController;
   late Future<WeatherInfo> _weatherInfo;
+  late CurvedAnimation _curvedAnimation;
 
   @override
   void initState() {
     super.initState();
     _weatherInfo = _getWeatherInfo();
+    _tween = Tween<Offset>(begin: const Offset(0.0, 0.4), end: Offset.zero);
+    _animationController = AnimationController(
+        duration: const Duration(milliseconds: 1000), vsync: this);
+    _curvedAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeOut);
+    //Timer(const Duration(milliseconds: 200), () => _animationController.forward());
   }
 
-  static final errorBar = SnackBar(
-    padding: const EdgeInsets.all(5.0),
-    content: Container(
-      padding: const EdgeInsets.only(left: 20),
-        child: const Text('We cannot find the city/country you have typed.',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-        )
-    ),
-    action: SnackBarAction(
-      label: 'DISMISS',
-      onPressed: () {},
-    ),
-  );
+  static final cityErrorBar =
+      _buildErrorBar('We cannot find the city/country you have typed.');
+
+  static SnackBar _buildErrorBar(String errMessage) {
+    return SnackBar(
+      padding: const EdgeInsets.all(5.0),
+      content: Container(
+          padding: const EdgeInsets.only(left: 20),
+          child: Text(
+            errMessage,
+            style:
+                const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          )),
+      action: SnackBarAction(
+        label: 'DISMISS',
+        onPressed: () {},
+      ),
+    );
+  }
+
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   Future<WeatherInfo> _getWeatherInfo([String city = '']) async {
     try {
@@ -136,7 +158,16 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  late WeatherInfo _lastData;
+  Widget _buildSlideWidget(Widget widget) {
+    return SlideTransition(
+        position: _tween.animate(_curvedAnimation),
+        child: FadeTransition(
+          opacity: _animationController
+            ..forward(),
+          child: widget
+        )
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,15 +193,35 @@ class _MyHomePageState extends State<MyHomePage> {
                 if (snapshot.hasData) {
                   log('has data: ${snapshot.data != null}');
                   _lastData = snapshot.data!;
-                  return WeatherInfoShow(
-                      weatherInfo: snapshot.data!, onSearch: onSearch);
+                  return _buildSlideWidget(WeatherInfoShow(
+                      weatherInfo: snapshot.data!, onSearch: onSearch));
                 } else if (snapshot.hasError) {
                   log('has error: ${snapshot.error}');
-                  WidgetsBinding.instance?.addPostFrameCallback((_) {
-                    ScaffoldMessenger.of(context).showSnackBar(errorBar);
-                  });
-                  return WeatherInfoShow(
-                      weatherInfo: _lastData, onSearch: onSearch);
+                  if (_lastData != null) {
+                    WidgetsBinding.instance?.addPostFrameCallback((_) {
+                      ScaffoldMessenger.of(context).showSnackBar(cityErrorBar);
+                    });
+                    return _buildSlideWidget(WeatherInfoShow(
+                        weatherInfo: _lastData!, onSearch: onSearch));
+                  } else {
+                    return AlertDialog(
+                      title: const Text('Something Went Wrong'),
+                      content: ListBody(
+                        children: const [
+                          Text('OPPS, '),
+                          Text(
+                              'we cannot find the weather info from your location.'),
+                          Text(
+                              'please go to a valid place and click retry again.')
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                            onPressed: () => onSearch(''),
+                            child: const Text('RETRY'))
+                      ],
+                    );
+                  }
                 }
               }
               return const CircularProgressIndicator(color: Colors.white);

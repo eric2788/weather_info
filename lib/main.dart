@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -207,12 +208,11 @@ class _MyHomePageState extends State<MyHomePage>
                     return AlertDialog(
                       title: const Text('Something Went Wrong'),
                       content: ListBody(
-                        children: const [
-                          Text('OPPS, '),
-                          Text(
-                              'we cannot find the weather info from your location.'),
-                          Text(
-                              'please go to a valid place and click retry again.')
+                        children: [
+                          const Text('OPPS, there is an error.'),
+                          Text('${snapshot.error}', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          const Text('you must open your GPS to make the app work.'),
+                          const Text('please open the GPS first and click RETRY.')
                         ],
                       ),
                       actions: [
